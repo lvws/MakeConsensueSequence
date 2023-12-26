@@ -87,6 +87,19 @@ std::vector<singleM> UmiCluster(const std::vector<reader*>& vreads)
     for (auto& rd : vreads)
     {
         // //std::cout << "singleM: " << rd->name << std::endl;
+        rd->umi = rd->name.substr(0,rd->name.find('|'));
+        if (rd->flag1 & 16) // r1 reverse
+        {
+            rd->read1 = ReverseComplement(rd->read1);
+            std::reverse(rd->r1q.begin(),rd->r1q.end());
+            rd->r1_reverse = true;
+        }
+        if (rd->flag2 & 16) // r2 reverse
+        {
+            rd->read2 = ReverseComplement(rd->read2);
+            std::reverse(rd->r2q.begin(),rd->r2q.end());
+        }
+
         if (rd->r1_reverse)
             u_n2vreads_map[rd->umi].first.emplace_back(rd);
         else

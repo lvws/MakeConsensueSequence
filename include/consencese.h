@@ -18,7 +18,8 @@ struct reader
     string r1cigar; // cigar值用来后续构建consences 插入缺失的参考，防止错位导致大量的不匹配
     string r2cigar;
     string umi; // ACATGACT-CTGCT
-    string umi_tag; // ab
+    int flag1; // r1 flag 
+    int flag2; // r2 flag
     bool r1_reverse; // 记录r1 是否为反向map 到基因组，好对 cc 进行DCS构建
 };
 
