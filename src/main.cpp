@@ -211,7 +211,6 @@ void ParseSamRead(const bam1_t *aln, reader* rd)
 {
     int flag = getFlag(aln);
     rd->name = getName(aln);
-    // rd->umi = name.substr(0,rd->name.find('|'));
 
     if (flag & 64) // fist in pair
     {
@@ -219,33 +218,11 @@ void ParseSamRead(const bam1_t *aln, reader* rd)
         rd->read1 = getSeq(aln);
         rd->r1q = getQual(aln);
         rd->flag1 = flag;
-
-        // if (flag & 16) //read reverse strand
-        // {
-        //     rd->read1 = ReverseComplement(getSeq(aln));
-        //     std::reverse(qual.begin(),qual.end());
-        //     rd->r1q = qual;
-        //     rd->r1_reverse = true;
-        // } else {
-        //     rd->read1 = getSeq(aln);
-        //     rd->r1q = qual;
-        //     rd->r1_reverse = false;
-        // }
     } else {
         rd->r2cigar = getCigar(aln);
         rd->read2 = getSeq(aln);
         rd->r2q = getQual(aln);
         rd->flag2 = flag;
-
-        // if (flag & 16)
-        // {
-        //     rd->read2 = ReverseComplement(getSeq(aln));
-        //     std::reverse(qual.begin(),qual.end());
-        //     rd->r2q = qual;
-        // } else {
-        //     rd->read2 = getSeq(aln);
-        //     rd->r2q = qual;
-        // }
     }
 }
 
@@ -367,7 +344,7 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
                     // std::cout << "Push: " << pos2readers_key << std::endl;
                     v_readspoition.push_back({pos2readers_key,chrom,std::max(pos+insize,pos2)});
         
-                } else  { // 由于 insert size < 0 已经被过滤这里肯定是等于0；
+                } else  { // 由于 insert size < 0 已经被过滤这里肯定是大于等于0；
                     v_splitreads.emplace_back(pos2readers_key);
                 }
             }
