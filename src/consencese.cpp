@@ -3,7 +3,9 @@
 #include <unordered_map>
 #include <utility>
 #include <algorithm>
+#include <sstream>
 #include "consencese.h"
+
 
 using std::string ;
 
@@ -186,6 +188,7 @@ consencese MakeScs(const std::vector<reader*>& vreads,int QualThrethold,int Base
     }
     std::unordered_map<std::string,int> u_idcount_r1;
     std::unordered_map<std::string,int> u_idcount_r2;
+    std::unordered_map<std::string,int> u_idcout2num;
     std::unordered_map<std::string,std::vector<size_t>> u_cigar2num_r1; // key: NIND(Cigar) Value: index in vector
     std::unordered_map<std::string,std::vector<size_t>> u_cigar2num_r2;
     for (size_t i = 0 ; i < vreads.size() ; i ++)
@@ -208,10 +211,6 @@ consencese MakeScs(const std::vector<reader*>& vreads,int QualThrethold,int Base
         return a.second > b.second;
     });
 
-    //std::cout << "After vector " << std::endl;
-    // int QualThrethold = 10 + 33;
-    // int BaseNumThrethold = 3;
-    // float BaseThrethold = 0.75;
 
     char t_read[200];
     char t_qual[200];
@@ -345,10 +344,21 @@ consencese MakeScs(const std::vector<reader*>& vreads,int QualThrethold,int Base
     n_con.r2 = t_read2;
     n_con.q2 = t_qual2;
     n_con.name = vreads[0]->name;
+    n_con.id1 = r1_vpair[0].first;
+    n_con.id2 = r2_vpair[0].first;
     //std::cout << "SCS-Con-B: "  << std::endl;
 
     return n_con;
 
+}
+
+int IdNumCount(const string& s)
+{
+    std::istringstream ss(s);
+    int i,d;
+    char _i,_d;
+    ss >> i >> _i >> d >> _d;
+    return i+d;
 }
 
 consencese MakeDcs(const consencese& con1, const consencese& con2)
@@ -359,102 +369,127 @@ consencese MakeDcs(const consencese& con1, const consencese& con2)
     n_con.name = con1.name;
     n_con.s1 = con1.s1;
     n_con.s2 = con2.s2;
+    int con1_id, con2_id;
 
-    // if (con1.s1 > 0 && con2.s2 > 0)
-    // {
-    //     std::cout << "Con1 read1: " << con1.r1 << std::endl;
-    //     std::cout << "Con1 read2: " << con1.r2 << std::endl;
-
-    //     std::cout << "Con2 read1: " << con2.r1 << std::endl;
-    //     std::cout << "Con2 read2: " << con2.r2 << std::endl;
-    // }
-    
-
-    char t_read[200];
-    char t_qual[200];
-
-    for (size_t i = 0 ; i < 200 ; i++)
+    // 处理R1 
+    if (con1.id1 != con2.id2) // 某一条序列可能有错误插入缺失
     {
-        int n_use = 0;
-        if (i < con1.r1.size())
+        con1_id = IdNumCount(con1.id1);
+        con2_id = IdNumCount(con2.id2);
+        if (con1_id < con2_id)
         {
-            t_read[i] = con1.r1[i];
-            t_qual[i] = con1.q1[i];
-            n_use ++ ;
+            n_con.r1 = con1.r1;
+            n_con.q1 = con1.q1;
+        } else 
+        {
+            n_con.r1 = con2.r2;
+            n_con.q1 = con2.q2;
         }
-        if ( i < con2.r2.size())
+    } else
+    {
+        char t_read[200];
+        char t_qual[200];
+
+        for (size_t i = 0 ; i < 200 ; i++)
         {
+            int n_use = 0;
+            if (i < con1.r1.size())
+            {
+                t_read[i] = con1.r1[i];
+                t_qual[i] = con1.q1[i];
+                n_use ++ ;
+            }
+            if ( i < con2.r2.size())
+            {
+                if (n_use == 0)
+                {
+                    t_read[i] = con2.r2[i];
+                    t_qual[i] = con2.q2[i];
+                } else {
+                    if (t_read[i] != con2.r2[i])
+                    {
+                        t_read[i] = 'N';
+                        t_qual[i] = '!';
+                    } else {
+                        t_qual[i] = (t_qual[i] + con2.q2[i])/2;
+                    }
+
+                }
+                n_use++;
+            }
+
             if (n_use == 0)
             {
-                t_read[i] = con2.r2[i];
-                t_qual[i] = con2.q2[i];
-            } else {
-                if (t_read[i] != con2.r2[i])
-                {
-                    t_read[i] = 'N';
-                    t_qual[i] = '!';
-                } else {
-                    t_qual[i] = (t_qual[i] + con2.q2[i])/2;
-                }
-
-            }
-            n_use++;
+                t_read[i] = 0;
+                t_qual[i] = 0;
+                break;
+            } 
         }
-
-        if (n_use == 0)
-        {
-            t_read[i] = 0;
-            t_qual[i] = 0;
-            break;
-        } 
+        n_con.r1 = t_read;
+        n_con.q1 = t_qual;
     }
-    n_con.r1 = t_read;
-    n_con.q1 = t_qual;
+    
 
 
     /*
     ================= R2 ===============
     */
-    char t_read2[200];
-    char t_qual2[200];
-    for (size_t i = 0 ; i < 200 ; i++)
+   if (con1.id2 != con2.id1) // 某一条序列可能有错误插入缺失
     {
-        int n_use = 0;
-        if (i < con1.r2.size())
+        con1_id = IdNumCount(con1.id2);
+        con2_id = IdNumCount(con2.id1);
+        if (con1_id < con2_id)
         {
-            t_read2[i] = con1.r2[i];
-            t_qual2[i] = con1.q2[i];
-            n_use ++ ;
+            n_con.r2 = con1.r2;
+            n_con.q2 = con1.q2;
+        } else 
+        {
+            n_con.r2 = con2.r1;
+            n_con.q2 = con2.q1;
         }
-        if ( i < con2.r1.size())
+    } else
+    {
+        char t_read2[200];
+        char t_qual2[200];
+        for (size_t i = 0 ; i < 200 ; i++)
         {
+            int n_use = 0;
+            if (i < con1.r2.size())
+            {
+                t_read2[i] = con1.r2[i];
+                t_qual2[i] = con1.q2[i];
+                n_use ++ ;
+            }
+            if ( i < con2.r1.size())
+            {
+                if (n_use == 0)
+                {
+                    t_read2[i] = con2.r1[i];
+                    t_qual2[i] = con2.q1[i];
+                } else {
+                    if (t_read2[i] != con2.r1[i])
+                    {
+                        t_read2[i] = 'N';
+                        t_qual2[i] = '!';
+                    } else {
+                        t_qual2[i] = (t_qual2[i] + con2.q1[i])/2;
+                    }
+
+                }
+                n_use++;
+            }
+
             if (n_use == 0)
             {
-                t_read2[i] = con2.r1[i];
-                t_qual2[i] = con2.q1[i];
-            } else {
-                if (t_read2[i] != con2.r1[i])
-                {
-                    t_read2[i] = 'N';
-                    t_qual2[i] = '!';
-                } else {
-                    t_qual2[i] = (t_qual2[i] + con2.q1[i])/2;
-                }
-
-            }
-            n_use++;
+                t_read2[i] = 0;
+                t_qual2[i] = 0;
+                break;
+            } 
         }
-
-        if (n_use == 0)
-        {
-            t_read2[i] = 0;
-            t_qual2[i] = 0;
-            break;
-        } 
+        n_con.r2 = t_read2;
+        n_con.q2 = t_qual2;
     }
-    n_con.r2 = t_read;
-    n_con.q2 = t_qual;
-
+    
     return n_con;
 }
 

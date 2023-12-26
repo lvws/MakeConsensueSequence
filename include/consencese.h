@@ -20,7 +20,7 @@ struct reader
     string umi; // ACATGACT-CTGCT
     int flag1; // r1 flag 
     int flag2; // r2 flag
-    bool r1_reverse; // 记录r1 是否为反向map 到基因组，好对 cc 进行DCS构建
+    bool r1_reverse = false; // 记录r1 是否为反向map 到基因组，好对 cc 进行DCS构建
 };
 
 /*
@@ -30,6 +30,7 @@ struct consencese
 {
     string r1,r2;
     string q1,q2;
+    string id1,id2; // del and insert ; 记录del 和 ins 的状态.
     string name;
     int s1 = 0;
     int s2 = 0;
