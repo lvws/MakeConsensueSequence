@@ -3,6 +3,7 @@
 #include <htslib/sam.h>
 #include <iostream>
 #include <sstream>
+#include <cstring>
 
 using std::string,std::cout,std::cerr;
 
@@ -54,6 +55,11 @@ string getCigar(const bam1_t *aln)
     return ss.str();
 }
 
+//get seq length
+int getLen(const bam1_t *aln){
+    return aln->core.l_qseq;
+}
+
 // get seq quality
 string getQual(const bam1_t *aln) {
     uint8_t *data = bam_get_qual(aln);
@@ -62,6 +68,24 @@ string getQual(const bam1_t *aln) {
     for(int i=0; i<len; i++) {
         s[i] = (char)(data[i] + 33);
     }
+    return s;
+}
+
+// get seq quality uint8 array
+uint8_t* getQualU8(const bam1_t *aln){
+    uint8_t* data = bam_get_qual(aln);
+    uint8_t* outdata = new uint8_t[aln->core.l_qseq] ;
+    std::memcpy(outdata,data,aln->core.l_qseq);
+    return outdata;
+}
+
+string getQualFu8(uint8_t *data,int len)
+{
+    string s(len, '\0');
+    for(int i=0; i<len; i++) {
+        s[i] = (char)(data[i] + 33);
+    }
+    delete[] data;
     return s;
 }
 
@@ -81,6 +105,27 @@ string getSeq(const bam1_t *aln) {
     return s;
 }
 
+uint8_t* getSeqU8(const bam1_t *aln){
+    uint8_t *data = bam_get_seq(aln);
+    uint8_t* outdata = new uint8_t[aln->core.l_qseq];
+    std::memcpy(outdata,data,aln->core.l_qseq);
+    return outdata;
+}
+
+string getSeqFu8(uint8_t *data,int len)
+{
+    string s(len, '\0');
+    for(int i=0; i<len; i++) {
+        char base;
+        if(i%2 == 1)
+            base = fourbits2base(data[i/2] & 0xF); 
+        else
+            base = fourbits2base((data[i/2]>>4) & 0xF);
+        s[i] = base;
+    }
+    delete[] data;
+    return s;
+}
 
 
 // 得到辅助字段的信息 tag = "MD" 

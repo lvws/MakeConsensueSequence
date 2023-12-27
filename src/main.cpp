@@ -215,14 +215,16 @@ void ParseSamRead(const bam1_t *aln, reader* rd)
     if (flag & 64) // fist in pair
     {
         rd->r1cigar = getCigar(aln);
-        rd->read1 = getSeq(aln);
-        rd->r1q = getQual(aln);
+        rd->r1array = getSeqU8(aln);
+        rd->q1array = getQualU8(aln);
         rd->flag1 = flag;
+        rd->r1len = getLen(aln);
     } else {
         rd->r2cigar = getCigar(aln);
-        rd->read2 = getSeq(aln);
-        rd->r2q = getQual(aln);
+        rd->r2array = getSeqU8(aln);
+        rd->q2array = getQualU8(aln);
         rd->flag2 = flag;
+        rd->r2len = getLen(aln);
     }
 }
 

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <sstream>
 #include "consencese.h"
+#include "BamReader.h"
 
 
 using std::string ;
@@ -88,8 +89,13 @@ std::vector<singleM> UmiCluster(const std::vector<reader*>& vreads)
     // 读取readers 记录umi 相同的，成簇
     for (auto& rd : vreads)
     {
-        // //std::cout << "singleM: " << rd->name << std::endl;
+        // std::cout << "singleM: " << rd->name << std::endl;
         rd->umi = rd->name.substr(0,rd->name.find('|'));
+        rd->read1 = getSeqFu8(rd->r1array,rd->r1len);
+        rd->r1q = getQualFu8(rd->q1array,rd->r1len);
+        rd->read2 = getSeqFu8(rd->r2array,rd->r2len);
+        rd->r2q = getQualFu8(rd->q2array,rd->r2len);
+        // std::cout << rd->read1 << std::endl;
         if (rd->flag1 & 16) // r1 reverse
         {
             rd->read1 = ReverseComplement(rd->read1);
@@ -211,16 +217,16 @@ consencese MakeScs(const std::vector<reader*>& vreads,int QualThrethold,int Base
         return a.second > b.second;
     });
 
-
+    int n; // 记录 reads 数量
     char t_read[200];
     char t_qual[200];
     auto& indexes = u_cigar2num_r1[r1_vpair[0].first];
-    int n = indexes.size();
     for (size_t i = 0 ; i < 200 ; i ++)
     {
         //std::cout << "N: " << n <<"\tI: " << i << std::endl;
         //std::cout << vreads[0]->read1 << std::endl;
         //std::cout << vreads[0]->r1q << std::endl;
+        n = indexes.size();
         int use_base = 0;
         std::unordered_map<char,int> u_atcg_map ;
         int qual = 0;
@@ -242,7 +248,6 @@ consencese MakeScs(const std::vector<reader*>& vreads,int QualThrethold,int Base
         //std::cout << "2:N: " << n <<"\tI: " << i << std::endl;
         if (n == 0) // 没有多余的碱基
         {
-            //std::cout << "Final N: " << n <<"\tI: " << i << std::endl;
             t_read[i] = 0;
             t_qual[i] = 0;
             break;
@@ -287,9 +292,9 @@ consencese MakeScs(const std::vector<reader*>& vreads,int QualThrethold,int Base
     char t_read2[200];
     char t_qual2[200];
     indexes = u_cigar2num_r2[r2_vpair[0].first];
-    n = indexes.size();
     for (size_t i = 0 ; i < 200 ; i ++)
     {
+        n = indexes.size();
         int use_base = 0;
         std::unordered_map<char,int> u_atcg_map ;
         int qual = 0;

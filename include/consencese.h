@@ -21,6 +21,17 @@ struct reader
     int flag1; // r1 flag 
     int flag2; // r2 flag
     bool r1_reverse = false; // 记录r1 是否为反向map 到基因组，好对 cc 进行DCS构建
+
+    uint8_t *r1array,*q1array,*r2array,*q2array; // 序列、质量的 数组
+    int r1len,r2len; // 序列长度
+
+    // ~reader(){
+    //     delete[] r1array;
+    //     delete[] r2array;
+    //     delete[] q1array;
+    //     delete[] q2array;
+    // }
+
 };
 
 /*

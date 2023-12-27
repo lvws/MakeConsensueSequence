@@ -72,6 +72,13 @@ string getSeq(const bam1_t *aln);
 string getAux(const bam1_t *aln,const char tag[2]);
 string getName(const bam1_t *aln);
 
+uint8_t* getSeqU8(const bam1_t *aln); // need destroy
+string getSeqFu8(uint8_t *data,int len); // destroy u8array
+uint8_t* getQualU8(const bam1_t *aln); // need destroy
+string getQualFu8(uint8_t *data,int len); // destroy u8array
+
+int getLen(const bam1_t *aln);
+
 int getFlag(const bam1_t *aln);
 
 int getPos(const bam1_t *aln);
