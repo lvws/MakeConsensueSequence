@@ -149,7 +149,12 @@ const std::string& file_name, int threadNum,
 int QualThrethold,int BaseNumThrethold,float BaseThrethold) 
 {
     std::ofstream output1(file_name+"_R1.fastq"+std::to_string(threadNum), std::ios::out); 
-    std::ofstream output2(file_name+"_R2.fastq"+std::to_string(threadNum), std::ios::out); 
+    std::ofstream output2(file_name+"_R2.fastq"+std::to_string(threadNum), std::ios::out);
+    std::ofstream outinfo(file_name+".info.tsv"+std::to_string(threadNum), std::ios::out);
+    int Fragments = 0 ;// 单分子数
+    int UC = 0 ;// 构建 scs read pair 数
+    int US = 0 ;// 无法构建scs 的read pair 数
+    int DC = 0 ;// 构建 dcs read pair 数
     std::vector<reader*> data;
     while (true) {
         //std::cout << "开始取数据：" << std::endl;
@@ -162,6 +167,7 @@ int QualThrethold,int BaseNumThrethold,float BaseThrethold)
         }
         //std::cout << "Start: MakeCs" << std::endl;
         auto v_umi_clusters = UmiCluster(data);
+        Fragments += v_umi_clusters.size();
         //std::cout << "umi_clusters is OK!"<< std::endl;
         std::vector<consencese> v_out_cons;
         for (auto& sm : v_umi_clusters)
@@ -192,6 +198,12 @@ int QualThrethold,int BaseNumThrethold,float BaseThrethold)
             // std::lock_guard<std::mutex> lock(file_mutex);
             for (const auto& con : v_out_cons)
             {
+                if (con.s1 == 0 || con.s2 == 0)
+                {
+                    if (con.s1 == 1 || con.s2 == 1) US++;
+                    else UC += con.s1 + con.s2;
+                } else 
+                    DC += con.s1 + con.s2;
                 //std::cout << con.name << std::endl;
                 output1 << "@" << con.name << "|" << con.s1 << "|" << con.s2 << "\n";
                 output1 << con.r1 << "\n";
@@ -205,6 +217,11 @@ int QualThrethold,int BaseNumThrethold,float BaseThrethold)
             }
         }
     }
+    outinfo << "#Fragments\tUS\tUC\tDC\n"
+        << Fragments << "\t"
+        << US << "\t"
+        << UC << "\t"
+        << DC << "\n";
 }
 
 void ParseSamRead(const bam1_t *aln, reader* rd)
@@ -228,9 +245,11 @@ void ParseSamRead(const bam1_t *aln, reader* rd)
     }
 }
 
-void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_queue)
+void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_queue,const string& file_name)
 {
     int MaxInsertSize = 10000;
+    int MappedReadsNum = 0;
+    int InsertGroup = 0;
     /*
     方便查询同一个起始位点reads集合
     */
@@ -262,7 +281,10 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
         string name = getName(myBam.aln);
         int flag = getFlag(myBam.aln);
         reader* newRd;
-    
+
+        if (!(flag & 4)) // read unmap;
+            MappedReadsNum ++ ;
+
         if (flag & 2304) // not primary alignment or supplementary alignment
             continue;
         // 该read 曾经记录过
@@ -313,6 +335,7 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
                     // std::cout << "Deal with: " << h_pos_key << std::endl;  
      
                     data_queue.push(u_pos2readers_map[h_pos_key]);
+                    InsertGroup ++ ;
                     // FreeReads(u_pos2readers_map[h_pos_key]);
                     u_pos2readers_map.erase(h_pos_key);
                     // if (u_already_recode.find(h_pos_key) != u_already_recode.end())
@@ -356,6 +379,7 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
     {
         auto[h_pos_key,h_chrom,h_pos] = v_readspoition.pop();
         data_queue.push(u_pos2readers_map[h_pos_key]);
+        InsertGroup ++ ;
         // MakeCs1(u_pos2readers_map[h_pos_key],"output");
         // FreeReads(u_pos2readers_map[h_pos_key]);
         u_pos2readers_map.erase(h_pos_key);
@@ -366,13 +390,17 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
     for (auto& key : v_splitreads)
     {
         data_queue.push(u_pos2readers_map[key]);
+        InsertGroup ++ ;
         // MakeCs1(u_pos2readers_map[key],"output");
         // for (auto& i :u_pos2readers_map[key] )
         //     std::cout << i->name << "\n";
         // FreeReads(u_pos2readers_map[key]);
         u_pos2readers_map.erase(key);
     }
-        
+
+    std::ofstream outinfo(file_name+".mainInfo.tsv",std::ios::out);
+    outinfo << "#MappedReadsNum\tInsertGroup\n"
+        << MappedReadsNum << "\t" << InsertGroup << "\n";
 }
 
 int main() {
@@ -398,7 +426,7 @@ int main() {
     // for (int i = 0; i < 100; ++i) {
     //     data_queue.push(i);
     // }
-    ReadBAM(bam_name,data_queue);
+    ReadBAM(bam_name,data_queue,file_name);
 
     // 发送终止信号给工作线程
     for (int i = 0; i < num_threads; ++i) {

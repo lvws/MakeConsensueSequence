@@ -112,8 +112,6 @@ void ParseSamRead(const bam1_t *aln, reader* rd);
 /*
 读取BAM文件，构建reader 、consences
 */
-void ReadBAM(const string& bam_name, std::unordered_map<string,reader*>& u_name2reader_map,
-std::unordered_map<string,std::vector<reader*>> u_pos2readers_map,
-std::vector<std::string> v_splitreads);
+// void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_queue,const string& file_name);
 
 
