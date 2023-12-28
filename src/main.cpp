@@ -247,7 +247,8 @@ void ParseSamRead(const bam1_t *aln, reader* rd)
 
 void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_queue,const string& file_name)
 {
-    int MaxInsertSize = 10000;
+    int MaxInsertSize = 10000; // 用于分配任务的表单大小
+    int UseInsertSize = 8000; // 可分配进任务分发表单的insert size 大小
     int MappedReadsNum = 0;
     int InsertGroup = 0;
     /*
@@ -258,6 +259,7 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
     根据read name 找到对应的read
     */
     std::unordered_map<string,reader*> u_name2reader_map;
+    std::unordered_map<string,reader*> u_name2reader_map2; // 专门记录insert-size 等于0 或过大的reads
 
     /*
     read pair pos-insertsize map， 将同起点、终点的read pairs 记录在一个字典里
@@ -265,11 +267,13 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
     value: point to reader
     */
     std::unordered_map<string,std::vector<reader*>> u_pos2readers_map;
+    std::unordered_map<string,std::vector<reader*>> u_pos2readers_map2; // 专门记录insert-size 等于0 或过大的reads
     /*
     map 在不同区域的read pairs 单独处理
     */
     std::vector<std::string> v_splitreads;
     BamReader myBam(bam_name);
+    std::unordered_map<std::string,bool> u_already_recode;
     std::unordered_map<std::string,bool> u_already_recode2;
 
     while (myBam.next())
@@ -287,30 +291,51 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
 
         if (flag & 2304) // not primary alignment or supplementary alignment
             continue;
-        // 该read 曾经记录过
-        exist_tag = (u_name2reader_map.find(name) != u_name2reader_map.end());
-        // 该read  已经记录到 u_pos2readers_map 中
-        recode_tag = (u_already_recode2.find(name) != u_already_recode2.end());
-        if (recode_tag)
-            u_already_recode2.erase(name); // 这个对内存影响很大。
-        // std::cout << "Start Treat: " << name << "\tExists: " << exist_tag << std::endl;
-        if (exist_tag)
-        {
-            newRd = u_name2reader_map[name];
-            ParseSamRead(myBam.aln, newRd);
-            u_name2reader_map.erase(name);
-        } else {
-            newRd = new reader; // 在堆分配数据，好跨作用域使用，用完要记得delete!!!
-            //reader* newRd = std::make_shared<reader>();
-            u_name2reader_map[name] = newRd;
-            ParseSamRead(myBam.aln, newRd);
-        }
-
-        // std::cout << "ParseSamRead OK! " << name << std::endl;
         string chrom = getChrom(myBam.aln,myBam.bam_header);
         int pos = getPos(myBam.aln);
         int pos2 = getNpos(myBam.aln);
         int insize = getIsize(myBam.aln);
+        if (insize != 0 && std::abs(insize) < UseInsertSize )
+        {
+            // 该read 曾经记录过
+            exist_tag = (u_name2reader_map.find(name) != u_name2reader_map.end());
+            // 该read  已经记录到 u_pos2readers_map 中
+            recode_tag = (u_already_recode.find(name) != u_already_recode.end());
+            if (recode_tag)
+                u_already_recode.erase(name); // 这个对内存影响很大。
+            if (exist_tag)
+            {
+                newRd = u_name2reader_map[name];
+                ParseSamRead(myBam.aln, newRd);
+                u_name2reader_map.erase(name);
+            } else {
+                newRd = new reader; // 在堆分配数据，好跨作用域使用，用完要记得delete!!!
+                //reader* newRd = std::make_shared<reader>();
+                u_name2reader_map[name] = newRd;
+                ParseSamRead(myBam.aln, newRd);
+            }
+        } else {
+            // 该read 曾经记录过
+            exist_tag = (u_name2reader_map2.find(name) != u_name2reader_map2.end());
+            // 该read  已经记录到 u_pos2readers_map 中
+            recode_tag = (u_already_recode2.find(name) != u_already_recode2.end());
+            if (recode_tag)
+                u_already_recode2.erase(name); // 这个对内存影响很大。
+            if (exist_tag)
+            {
+                newRd = u_name2reader_map2[name];
+                ParseSamRead(myBam.aln, newRd);
+                u_name2reader_map2.erase(name);
+            } else {
+                newRd = new reader; // 在堆分配数据，好跨作用域使用，用完要记得delete!!!
+                //reader* newRd = std::make_shared<reader>();
+                u_name2reader_map2[name] = newRd;
+                ParseSamRead(myBam.aln, newRd);
+            }
+        }
+        // std::cout << "Start Treat: " << name << "\tExists: " << exist_tag << std::endl;
+
+        // std::cout << "ParseSamRead OK! " << name << std::endl;
 
         //  不记录insert size为负的reads , 避免重复。
         if (insize < 0)
@@ -319,12 +344,19 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
         if (insize > 0) // 正常比对的read pairs , 取出现在靠前的reads 
         {
             pos2readers_key = chrom + ":" + std::to_string(pos) + ":" + std::to_string(insize);
-            exist_pos_tag = (u_pos2readers_map.find(pos2readers_key) != u_pos2readers_map.end());
             // std::cout << "Key: " << pos2readers_key << "\tExists: " << exist_pos_tag << std::endl; 
             if (!recode_tag) // 该read 第一出现，则加入u_pos2readers_map 中
             {
-                u_pos2readers_map[pos2readers_key].emplace_back(newRd);
-                u_already_recode2[name] = true;
+                if(insize < UseInsertSize)
+                {
+                    exist_pos_tag = (u_pos2readers_map.find(pos2readers_key) != u_pos2readers_map.end());
+                    u_pos2readers_map[pos2readers_key].emplace_back(newRd);
+                    u_already_recode[name] = true;
+                } else {
+                    exist_pos_tag = (u_pos2readers_map2.find(pos2readers_key) != u_pos2readers_map2.end());
+                    u_pos2readers_map2[pos2readers_key].emplace_back(newRd);
+                    u_already_recode2[name] = true;
+                }
             }
             // 准备就绪的reads 进行cs 构建
             while (true && v_readspoition.elems() > 0 )
@@ -352,10 +384,10 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
         {
             string chrom2 = getNchrom(myBam.aln,myBam.bam_header);
             pos2readers_key = chrom + ":" + std::to_string(pos) + "-" + chrom2 + ":" + std::to_string(pos2);
-            exist_pos_tag = (u_pos2readers_map.find(pos2readers_key) != u_pos2readers_map.end());
+            exist_pos_tag = (u_pos2readers_map2.find(pos2readers_key) != u_pos2readers_map2.end());
             if (!recode_tag) // 该read 第一出现，则加入u_pos2readers_map 中
             {
-                u_pos2readers_map[pos2readers_key].emplace_back(u_name2reader_map[name]) ;
+                u_pos2readers_map2[pos2readers_key].emplace_back(u_name2reader_map2[name]) ;
                 u_already_recode2[name] = true;
             } 
             
@@ -364,7 +396,7 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
         if (!exist_pos_tag) 
             {
                 // 有些reads 的insert size 特别大
-                if (insize < MaxInsertSize*0.8 && insize > 0)
+                if (insize < UseInsertSize && insize > 0)
                 {
                     // std::cout << "Push: " << pos2readers_key << std::endl;
                     v_readspoition.push_back({pos2readers_key,chrom,std::max(pos+insize,pos2)});
@@ -389,13 +421,13 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
     std::cout << "Deal v_splitreads size: " << v_splitreads.size() << std::endl;
     for (auto& key : v_splitreads)
     {
-        data_queue.push(u_pos2readers_map[key]);
+        data_queue.push(u_pos2readers_map2[key]);
         InsertGroup ++ ;
         // MakeCs1(u_pos2readers_map[key],"output");
         // for (auto& i :u_pos2readers_map[key] )
         //     std::cout << i->name << "\n";
         // FreeReads(u_pos2readers_map[key]);
-        u_pos2readers_map.erase(key);
+        u_pos2readers_map2.erase(key);
     }
 
     std::ofstream outinfo(file_name+".mainInfo.tsv",std::ios::out);
