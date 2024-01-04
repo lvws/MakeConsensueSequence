@@ -435,18 +435,22 @@ void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_
         << MappedReadsNum << "\t" << InsertGroup << "\n";
 }
 
-int main() {
-    const int num_threads = 10;
+int main(int argc,char* args[]) {
+    if (argc < 7)
+    {
+        std::cout << args[0] << "\t"
+            << "InputBam(path)\tOutputName(path)\tQualThrethold(10)\tBaseNumThrethold(3)\tBaseThrethold(0.75)\tThreads Num(10)\n";
+        return -1;
+    }
+    const std::string bam_name = args[1];
+    const std::string file_name = args[2];
+    int QualThrethold = std::stoi(args[3]) + 33;  
+    int BaseNumThrethold = std::stoi(args[4]);
+    float BaseThrethold  = std::stoi(args[5]);
+    const int num_threads = std::stoi(args[6]);
     ThreadSafeQueue<std::vector<reader*>> data_queue;
     std::mutex file_mutex;
     std::vector<std::thread> pool;
-    std::string bam_name = "test.bam";
-    const std::string file_name = "output";
-    int QualThrethold = 10 + 33;
-    int BaseNumThrethold = 3;
-    float BaseThrethold = 0.75;
-    // std::ofstream output1(file_name+"_R1.fastq", std::ios::out); 
-    // std::ofstream output2(file_name+"_R2.fastq", std::ios::out); 
     
     // 启动线程池
     for (int i = 0; i < num_threads; ++i) {
