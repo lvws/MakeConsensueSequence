@@ -12,8 +12,9 @@ class Timer
 {
 private:
     std::chrono::_V2::system_clock::time_point now;
+
 public:
-    Timer(): now(std::chrono::high_resolution_clock::now()) {}
+    Timer() : now(std::chrono::high_resolution_clock::now()) {}
 
     ~Timer()
     {
@@ -22,7 +23,6 @@ public:
         float ms = duration.count() * 1000.0f;
         std::cout << "Timer: " << ms << " ms" << std::endl;
     }
-
 };
 
 /*
@@ -32,11 +32,12 @@ template <typename T>
 struct MyVector
 {
 private:
-    T* data;
-    size_t start,end,len,num;
+    T *data;
+    size_t start, end, len, num;
+
 public:
     MyVector(unsigned n)
-        : start(0),end(0),len(n),num(0)
+        : start(0), end(0), len(n), num(0)
     {
         data = new T[n];
     }
@@ -48,14 +49,52 @@ public:
 
     bool push_back(T elem)
     {
-        if (num == len)
-            return false;
-        data[end] = elem;
-        end ++ ;
-        num ++ ;
-        if (end == len) 
-            end = 0;
-        return true;
+        if (num < len)
+        {
+            data[end] = elem;
+            end++;
+            num++;
+            if (end == len)
+                end = 0;
+            return true;
+        }
+        else
+        {
+            size_t len_n = len * 2;
+            auto data_n = new T[len_n];
+            size_t start_n = 0;
+            size_t end_n = 0;
+
+            if (end > start)
+            {
+                for (size_t i = start; i <= end; i++)
+                {
+                    data_n[end_n] = std::move(data[i]);
+                    end_n++;
+                }
+            }
+            else
+            {
+                for (size_t i = start; i < len; i++)
+                {
+                    data_n[end_n] = std::move(data[i]);
+                    end_n++;
+                }
+                for (size_t i = 0; i < end; i++)
+                {
+                    data_n[end_n] = std::move(data[i]);
+                    end_n++;
+                }
+            }
+            data_n[end_n] = elem;
+            delete[] data;
+            data = data_n;
+            start = start_n;
+            end = end_n + 1;
+            len = len_n;
+            num++;
+            return true;
+        }
     }
 
     T pop()
@@ -64,21 +103,21 @@ public:
         if (num == 0)
             return tmp;
         tmp = data[start];
-        start ++ ;
-        num -- ;
-        if (start == len) 
+        start++;
+        num--;
+        if (start == len)
             start = 0;
         return tmp;
     }
 
     // 检查头部元素
-    T& head()
+    T &head()
     {
         return data[start];
     }
 
     // 检查尾部元素
-    T& tail()
+    T &tail()
     {
         return data[end];
     }
@@ -97,21 +136,34 @@ public:
 
     void status()
     {
-        std::cout << "MyVector 容量：" << len  << "; ";
-        std::cout << "存储元素：" << num << "; " ;
-        std::cout << "起始指针位置：" << start << ";" ;
+        std::cout << "MyVector 容量：" << len << "; ";
+        std::cout << "存储元素：" << num << "; ";
+        std::cout << "起始指针位置：" << start << ";";
         std::cout << "终止指针位置：" << end << "\n";
+    }
+
+    int get_start()
+    {
+        return start;
+    }
+
+    int get_end()
+    {
+        return end;
+    }
+
+    T get_elem(int n)
+    {
+        return data[n];
     }
 };
 
 /*
-从输入的BAM， aln 信息中，构建reader, 会修改 reader 
+从输入的BAM， aln 信息中，构建reader, 会修改 reader
 */
-void ParseSamRead(const bam1_t *aln, reader* rd);
+void ParseSamRead(const bam1_t *aln, reader *rd);
 
 /*
 读取BAM文件，构建reader 、consences
 */
 // void ReadBAM(const string& bam_name,ThreadSafeQueue<std::vector<reader*>>& data_queue,const string& file_name);
-
-
